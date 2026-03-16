@@ -6,18 +6,26 @@ Built with [FastMCP](https://github.com/jlowin/fastmcp) and the [Gazu](https://g
 
 ## Features
 
-**30 tools** covering the full Kitsu production pipeline:
+**71 tools** covering the full Kitsu production pipeline:
 
 | Category | Tools |
 |----------|-------|
-| **Projects** | List projects, get overview, create project |
-| **Assets** | List, get details, create assets & asset types |
-| **Shots & Sequences** | List, get details, create episodes, sequences, shots |
-| **Tasks** | List, get details, create, assign, update status, set estimates |
+| **Projects** | List, overview, stats, create, close |
+| **Assets** | List, details, create, update, delete, asset types, CSV import/export |
+| **Shots & Sequences** | List, details, create, update, delete, batch create, CSV import/export, OTIO import |
+| **Tasks** | List, details, create, batch create, assign, update status, set estimates, delete |
+| **Time Tracking** | Add, set, get time spent |
 | **Comments** | Add comments, list comment history |
-| **Casting** | Get and set shot casting (asset breakdown) |
-| **Team** | List team members, get person's tasks |
-| **Other** | Search, playlists, notifications, task statuses |
+| **Previews** | Upload preview, publish preview (status + comment + file in one) |
+| **Casting** | Get/set shot casting, get asset casting |
+| **Team & People** | List team, person tasks, create person, departments |
+| **Playlists** | List, create, add entities, build movie |
+| **Budgets** | List, create budgets and budget entries |
+| **Concepts** | List, create concepts |
+| **Edits** | List, create edits |
+| **Scenes** | List, create scenes |
+| **Metadata** | List and add custom metadata descriptors |
+| **Other** | Search, notifications, task statuses, daily progress report |
 
 ## Requirements
 
@@ -84,19 +92,21 @@ python server.py
 Once connected, you can ask your AI assistant things like:
 
 - "List all open projects in Kitsu"
-- "Create a new project called 'Commercial X'"
-- "Show me all shots in sequence SQ01"
-- "Create 5 shots (SH010-SH050) in sequence SQ01"
-- "Assign the lighting task on SH020 to anna@studio.com"
-- "What tasks are assigned to me?"
-- "Set the status of this task to Work In Progress"
-- "Add a comment to the animation task on SH030"
+- "Create shots SH010 through SH200 in sequence SQ01"
+- "Upload this render as a preview for the lighting task on SH020"
+- "What happened in the project in the last 24 hours?"
+- "Assign the animation task on SH030 to anna@studio.com"
+- "Add 4 hours of work on this task for today"
+- "Export all shots to CSV"
+- "Create a new playlist and add all shots from SQ01"
+- "What are the budget entries for this project?"
 
 ## Available tools
 
 ### Read
 - `list_projects` — List all open projects
 - `get_project_overview` — Project overview with team, task types, asset types
+- `get_project_stats` — Task statistics grouped by status
 - `list_assets` — List assets (optionally filtered by type)
 - `get_asset_details` — Asset details with tasks
 - `list_sequences` — List sequences
@@ -105,14 +115,26 @@ Once connected, you can ask your AI assistant things like:
 - `list_my_tasks` — Tasks assigned to logged-in user
 - `list_tasks_for_entity` — Tasks for a specific asset or shot
 - `get_task_details` — Task details with comment history
+- `get_time_spent` — Time entries for a task
 - `list_comments` — Comments on a task
 - `get_shot_casting` — Asset breakdown for a shot
+- `get_asset_casting` — Shots an asset appears in
 - `list_team_members` — Team members in a project
 - `get_person_tasks` — Tasks for a specific person
+- `list_departments` — All departments
 - `list_playlists` — Playlists in a project
 - `list_task_statuses` — Available task statuses
 - `list_notifications` — Recent notifications
 - `search` — Search entities by name
+- `daily_progress_report` — Activity summary for last N hours
+- `list_concepts` — Concepts in a project
+- `list_edits` — Edits in a project
+- `list_scenes` — Scenes in a project
+- `list_metadata_descriptors` — Custom metadata fields
+- `get_budgets` — Budgets for a project
+- `get_budget_entries` — Entries in a budget
+- `export_assets_csv` — Export assets to CSV
+- `export_shots_csv` — Export shots to CSV
 
 ### Create
 - `create_project` — Create a new project
@@ -122,6 +144,15 @@ Once connected, you can ask your AI assistant things like:
 - `create_sequence` — Create a sequence
 - `create_shot` — Create a shot
 - `create_task` — Create a task with optional assignees
+- `create_person` — Create a new user
+- `create_department` — Create a department
+- `create_playlist` — Create a playlist
+- `create_budget` — Create a budget
+- `create_budget_entry` — Create a budget entry
+- `create_concept` — Create a concept
+- `create_edit` — Create an edit
+- `create_scene` — Create a scene
+- `add_metadata_descriptor` — Add a custom metadata field
 
 ### Update
 - `update_task_status` — Change task status with optional comment
@@ -129,6 +160,33 @@ Once connected, you can ask your AI assistant things like:
 - `set_task_estimate` — Set time estimate for a task
 - `add_comment` — Add a comment to a task
 - `set_shot_casting` — Set which assets appear in a shot
+- `update_asset` — Update asset description/metadata
+- `update_shot` — Update shot description/frames/metadata
+- `add_time_spent` — Add time spent on a task
+- `set_time_spent` — Set time spent on a task
+- `add_person_to_department` — Add person to department
+- `remove_person_from_department` — Remove person from department
+- `add_entity_to_playlist` — Add shot/asset to playlist
+
+### Batch
+- `batch_create_shots` — Create multiple shots at once (e.g. SH010-SH200)
+- `batch_create_tasks` — Add a task type to all shots/assets in a group
+
+### Preview
+- `upload_preview` — Upload a preview file to a task
+- `publish_preview` — Status + comment + preview in one step
+
+### Import/Export
+- `import_assets_csv` — Import assets from CSV
+- `import_shots_csv` — Import shots from CSV
+- `import_otio` — Import timeline from OpenTimelineIO
+
+### Dangerous (require confirm=True)
+- `delete_shot` — Delete a shot
+- `delete_asset` — Delete an asset
+- `delete_task` — Delete a task
+- `close_project` — Close/archive a project
+- `build_playlist_movie` — Build a movie from playlist
 
 ## License
 
