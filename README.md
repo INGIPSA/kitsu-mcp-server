@@ -28,7 +28,7 @@ Built with [FastMCP](https://github.com/jlowin/fastmcp) and the [Gazu](https://g
 ## Installation
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/kitsu-mcp-server.git
+git clone https://github.com/bucz-co/kitsu-mcp-server.git
 cd kitsu-mcp-server
 pip install -r requirements.txt
 ```
