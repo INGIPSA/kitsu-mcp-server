@@ -1,0 +1,25 @@
+name: Test Self-Hosted Runner
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-general:
+    runs-on: [self-hosted, linux, tato, general]
+    steps:
+      - uses: actions/checkout@v4
+      - name: System info
+        run: |
+          echo "Runner: $(hostname)"
+          echo "OS: $(uname -a)"
+          echo "Disk: $(df -h /tmp/runner/work)"
+          echo "Memory: $(free -h)"
+          echo "General runner works!"
+
+  test-gpu:
+    runs-on: [self-hosted, linux, tato, gpu]
+    steps:
+      - name: GPU check
+        run: |
+          nvidia-smi
+          echo "GPU runner works!"
