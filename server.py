@@ -346,7 +346,8 @@ def update_asset(
     if not updates:
         return {"error": "No updates provided"}
 
-    gazu.asset.update_asset(asset, updates)
+    asset.update(updates)
+    gazu.asset.update_asset(asset)
     return {"success": True, "asset": asset_name, "updated_fields": list(updates.keys())}
 
 
@@ -501,7 +502,8 @@ def update_shot(
     if not updates:
         return {"error": "No updates provided"}
 
-    gazu.shot.update_shot(shot, updates)
+    shot.update(updates)
+    gazu.shot.update_shot(shot)
     return {"success": True, "shot": shot_name, "updated_fields": list(updates.keys())}
 
 
@@ -846,6 +848,7 @@ def upload_preview(
 
     comment_result = gazu.task.add_comment(task, status, comment=comment)
     preview = gazu.task.add_preview(task, comment_result, file_path)
+    gazu.task.set_main_preview(preview)
 
     return {
         "success": True,
@@ -853,6 +856,22 @@ def upload_preview(
         "comment_id": comment_result.get("id"),
         "preview_id": preview.get("id"),
     }
+
+
+@mcp.tool()
+def set_main_preview(
+    preview_id: str,
+) -> dict:
+    """Set a preview file as the main preview (thumbnail) for its entity.
+
+    Args:
+        preview_id: The UUID of the preview file
+    """
+    try:
+        result = gazu.task.set_main_preview({"id": preview_id})
+        return {"success": True, "preview_id": preview_id}
+    except Exception as e:
+        return {"error": str(e)}
 
 
 @mcp.tool()
@@ -1154,6 +1173,55 @@ def list_team_members(project_name: str) -> list[dict]:
 
     team = gazu.project.get_team(project)
     return _slim_list(team, ["id", "full_name", "email", "role", "active"])
+
+
+@mcp.tool()
+def update_team_member_role(
+    project_name: str,
+    person_email: str,
+    role: str,
+) -> dict:
+    """Update a person's role within a project.
+
+    Args:
+        project_name: The name of the project
+        person_email: Email of the person whose role to change
+        role: New project role — 'artist', 'supervisor', 'manager', 'vendor', or 'client'
+    """
+    valid_roles = {"artist", "supervisor", "manager", "vendor", "client"}
+    if role.lower() not in valid_roles:
+        return {"error": f"Invalid role '{role}'. Must be one of: {', '.join(sorted(valid_roles))}"}
+
+    project, err = _resolve_project(project_name)
+    if err:
+        return err
+
+    person, err = _resolve_person(person_email)
+    if err:
+        return err
+
+    # Check person is already in the team
+    team = gazu.project.get_team(project)
+    member = next((m for m in team if m["id"] == person["id"]), None)
+    if not member:
+        return {"error": f"{person['full_name']} is not a member of project '{project_name}'"}
+
+    old_role = member.get("role", "unknown")
+
+    # Zou API: remove and re-add with new role
+    gazu.project.remove_person_from_team(project, person)
+    gazu.client.post(
+        f"data/projects/{project['id']}/team",
+        {"person_id": person["id"], "role": role.lower()},
+    )
+
+    return {
+        "success": True,
+        "person": person["full_name"],
+        "project": project_name,
+        "old_role": old_role,
+        "new_role": role.lower(),
+    }
 
 
 @mcp.tool()
