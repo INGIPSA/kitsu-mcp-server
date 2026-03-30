@@ -2157,7 +2157,6 @@ def add_metadata_descriptor(
         project,
         name=name,
         entity_type=entity_type,
-        field_name=field_name,
         data_type=data_type,
         choices=choices,
     )
