@@ -1225,6 +1225,49 @@ def update_team_member_role(
 
 
 @mcp.tool()
+def add_team_member(
+    project_name: str,
+    person_email: str,
+    role: str = "artist",
+) -> dict:
+    """Add a person to a project's team.
+
+    Args:
+        project_name: The name of the project
+        person_email: Email of the person to add
+        role: Project role — 'artist', 'supervisor', 'manager', 'vendor', or 'client' (default: 'artist')
+    """
+    valid_roles = {"artist", "supervisor", "manager", "vendor", "client"}
+    if role.lower() not in valid_roles:
+        return {"error": f"Invalid role '{role}'. Must be one of: {', '.join(sorted(valid_roles))}"}
+
+    project, err = _resolve_project(project_name)
+    if err:
+        return err
+
+    person, err = _resolve_person(person_email)
+    if err:
+        return err
+
+    # Check if already a member
+    team = gazu.project.get_team(project)
+    if any(m["id"] == person["id"] for m in team):
+        return {"error": f"{person['full_name']} is already a member of project '{project_name}'"}
+
+    gazu.client.post(
+        f"data/projects/{project['id']}/team",
+        {"person_id": person["id"], "role": role.lower()},
+    )
+
+    return {
+        "success": True,
+        "person": person["full_name"],
+        "project": project_name,
+        "role": role.lower(),
+    }
+
+
+@mcp.tool()
 def get_person_tasks(person_email: str, project_name: str | None = None) -> list[dict]:
     """Get all tasks assigned to a specific person.
 
