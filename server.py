@@ -1313,7 +1313,17 @@ def create_person(
         role=role,
         phone=phone,
     )
-    return _slim_entity(person)
+
+    # Automatically send invite email so the user can set their password
+    try:
+        gazu.client.post("auth/reset-password", {"email": email})
+        invite_sent = True
+    except Exception:
+        invite_sent = False
+
+    result = _slim_entity(person)
+    result["invite_email_sent"] = invite_sent
+    return result
 
 
 @mcp.tool()
