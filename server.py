@@ -1160,9 +1160,42 @@ def get_asset_casting(project_name: str, asset_name: str) -> list[dict]:
 # ============================================================
 
 
+def _get_project_membership(project_id: str, person_id: str) -> tuple[dict | None, dict | None]:
+    """Fetch the project-membership record for a person in a project.
+
+    Returns (membership_dict, None) on success or (None, error_dict) on failure.
+    Project-memberships store the *project* role (artist/client/…), which is
+    separate from the global Person role (user/admin/manager).
+    """
+    try:
+        memberships = gazu.client.get(
+            f"data/project-memberships?project_id={project_id}&person_id={person_id}"
+        )
+        if not memberships:
+            return None, {"error": "Person is not a member of this project"}
+        return memberships[0], None
+    except Exception as exc:
+        return None, {"error": f"Failed to fetch project membership: {exc}"}
+
+
+def _set_membership_role(membership_id: str, role: str) -> dict | None:
+    """PUT the new role on an existing project-membership record.
+
+    Returns an error dict on failure, None on success.
+    """
+    try:
+        gazu.client.put(
+            f"data/project-memberships/{membership_id}",
+            {"role": role},
+        )
+        return None
+    except Exception as exc:
+        return {"error": f"Failed to update membership role: {exc}"}
+
+
 @mcp.tool()
 def list_team_members(project_name: str) -> list[dict]:
-    """List all team members in a project.
+    """List all team members in a project, showing their project-level role.
 
     Args:
         project_name: The name of the project
@@ -1171,8 +1204,26 @@ def list_team_members(project_name: str) -> list[dict]:
     if err:
         return [err]
 
+    # Fetch persons and their project-membership roles in parallel
     team = gazu.project.get_team(project)
-    return _slim_list(team, ["id", "full_name", "email", "role", "active"])
+    try:
+        memberships = gazu.client.get(
+            f"data/project-memberships?project_id={project['id']}"
+        )
+        role_by_person = {m["person_id"]: m.get("role", "unknown") for m in memberships}
+    except Exception:
+        role_by_person = {}
+
+    result = []
+    for member in team:
+        result.append({
+            "id": member["id"],
+            "full_name": member["full_name"],
+            "email": member["email"],
+            "project_role": role_by_person.get(member["id"], "unknown"),
+            "active": member.get("active", True),
+        })
+    return result
 
 
 @mcp.tool()
@@ -1181,7 +1232,7 @@ def update_team_member_role(
     person_email: str,
     role: str,
 ) -> dict:
-    """Update a person's role within a project.
+    """Update a person's project-level role (artist/supervisor/manager/vendor/client).
 
     Args:
         project_name: The name of the project
@@ -1200,20 +1251,15 @@ def update_team_member_role(
     if err:
         return err
 
-    # Check person is already in the team
-    team = gazu.project.get_team(project)
-    member = next((m for m in team if m["id"] == person["id"]), None)
-    if not member:
-        return {"error": f"{person['full_name']} is not a member of project '{project_name}'"}
+    membership, err = _get_project_membership(project["id"], person["id"])
+    if err:
+        return err
 
-    old_role = member.get("role", "unknown")
+    old_role = membership.get("role", "unknown")
 
-    # Zou API: remove and re-add with new role
-    gazu.project.remove_person_from_team(project, person)
-    gazu.client.post(
-        f"data/projects/{project['id']}/team",
-        {"person_id": person["id"], "role": role.lower()},
-    )
+    err = _set_membership_role(membership["id"], role.lower())
+    if err:
+        return err
 
     return {
         "success": True,
@@ -1230,7 +1276,7 @@ def add_team_member(
     person_email: str,
     role: str = "artist",
 ) -> dict:
-    """Add a person to a project's team.
+    """Add a person to a project's team with the specified role.
 
     Args:
         project_name: The name of the project
@@ -1254,10 +1300,20 @@ def add_team_member(
     if any(m["id"] == person["id"] for m in team):
         return {"error": f"{person['full_name']} is already a member of project '{project_name}'"}
 
+    # Add to team (Kitsu always creates membership with default role 'artist')
     gazu.client.post(
         f"data/projects/{project['id']}/team",
-        {"person_id": person["id"], "role": role.lower()},
+        {"person_id": person["id"]},
     )
+
+    # If a non-default role was requested, update the membership record directly
+    if role.lower() != "artist":
+        membership, err = _get_project_membership(project["id"], person["id"])
+        if err:
+            return {"error": f"Person added but role not set: {err['error']}"}
+        err = _set_membership_role(membership["id"], role.lower())
+        if err:
+            return {"error": f"Person added but role not set: {err['error']}"}
 
     return {
         "success": True,
