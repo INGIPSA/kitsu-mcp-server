@@ -1345,6 +1345,50 @@ def get_person_tasks(person_email: str, project_name: str | None = None) -> list
     return _slim_list(tasks)
 
 
+def _send_invite(person: dict) -> dict:
+    """Send a first-time invite email to a person so they can set their password.
+
+    Tries POST persons/invite (correct endpoint for new accounts) and falls
+    back to auth/reset-password. Returns a status dict with keys
+    'invite_email_sent' (bool) and optionally 'invite_error' (str).
+    """
+    # Primary: Kitsu invite endpoint (sends "Welcome, set your password" email)
+    try:
+        gazu.client.post("persons/invite", {"person_id": person["id"]})
+        return {"invite_email_sent": True, "invite_method": "persons/invite"}
+    except Exception as primary_exc:
+        pass
+
+    # Fallback: password reset link (works if account has no password yet)
+    try:
+        gazu.client.post("auth/reset-password", {"email": person["email"]})
+        return {"invite_email_sent": True, "invite_method": "auth/reset-password"}
+    except Exception as fallback_exc:
+        return {
+            "invite_email_sent": False,
+            "invite_error": (
+                f"persons/invite: {primary_exc} | "
+                f"auth/reset-password: {fallback_exc}"
+            ),
+        }
+
+
+@mcp.tool()
+def invite_person(person_email: str) -> dict:
+    """Re-send an invite / password-reset email to an existing person.
+
+    Args:
+        person_email: Email of the person to invite
+    """
+    person, err = _resolve_person(person_email)
+    if err:
+        return err
+    result = _send_invite(person)
+    result["person"] = person["full_name"]
+    result["email"] = person["email"]
+    return result
+
+
 @mcp.tool()
 def create_person(
     first_name: str,
@@ -1370,15 +1414,12 @@ def create_person(
         phone=phone,
     )
 
-    # Automatically send invite email so the user can set their password
-    try:
-        gazu.client.post("auth/reset-password", {"email": email})
-        invite_sent = True
-    except Exception:
-        invite_sent = False
+    # Send first-time invite email (persons/invite is the correct endpoint
+    # for new accounts; auth/reset-password is for existing users only)
+    invite_result = _send_invite(person)
 
     result = _slim_entity(person)
-    result["invite_email_sent"] = invite_sent
+    result.update(invite_result)
     return result
 
 
