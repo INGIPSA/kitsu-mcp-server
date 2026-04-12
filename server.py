@@ -129,7 +129,7 @@ def _resolve_shot(project, sequence_name, shot_name):
 
 
 def _resolve_entity(project, name, entity_type="asset"):
-    """Resolve an entity (asset or shot) by name. Returns (entity, error_dict|None)."""
+    """Resolve an entity (asset, shot, or edit) by name. Returns (entity, error_dict|None)."""
     if entity_type == "shot":
         sequences = gazu.shot.all_sequences_for_project(project)
         for seq in sequences:
@@ -137,6 +137,11 @@ def _resolve_entity(project, name, entity_type="asset"):
             if entity:
                 return entity, None
         return None, {"error": f"Shot '{name}' not found"}
+    elif entity_type == "edit":
+        entity = gazu.edit.get_edit_by_name(project, name)
+        if not entity:
+            return None, {"error": f"Edit '{name}' not found"}
+        return entity, None
     else:
         entity = gazu.asset.get_asset_by_name(project, name)
         if not entity:
@@ -558,12 +563,12 @@ def list_my_tasks(project_name: str | None = None) -> list[dict]:
 def list_tasks_for_entity(
     project_name: str, entity_name: str, entity_type: str = "asset"
 ) -> list[dict]:
-    """List all tasks for a specific asset or shot.
+    """List all tasks for a specific asset, shot, or edit.
 
     Args:
         project_name: The name of the project
-        entity_name: The name of the asset or shot
-        entity_type: Either 'asset' or 'shot'
+        entity_name: The name of the asset, shot, or edit
+        entity_type: Either 'asset', 'shot', or 'edit'
     """
     project, err = _resolve_project(project_name)
     if err:
@@ -575,6 +580,8 @@ def list_tasks_for_entity(
 
     if entity_type == "shot":
         tasks = gazu.task.all_tasks_for_shot(entity)
+    elif entity_type == "edit":
+        tasks = gazu.task.all_tasks_for_edit(entity)
     else:
         tasks = gazu.task.all_tasks_for_asset(entity)
 
@@ -1829,13 +1836,13 @@ def create_task(
     entity_type: str = "asset",
     assignee_emails: list[str] | None = None,
 ) -> dict:
-    """Create a new task for an asset or shot.
+    """Create a new task for an asset, shot, or edit.
 
     Args:
         project_name: The name of the project
-        entity_name: The name of the asset or shot
-        task_type_name: The task type (e.g. 'Modeling', 'Animation', 'Lighting', 'Layout')
-        entity_type: Either 'asset' or 'shot'
+        entity_name: The name of the asset, shot, or edit
+        task_type_name: The task type (e.g. 'Modeling', 'Animation', 'Lighting', 'Layout', 'Edit')
+        entity_type: Either 'asset', 'shot', or 'edit'
         assignee_emails: Optional list of email addresses to assign
     """
     project, err = _resolve_project(project_name)
@@ -1858,11 +1865,25 @@ def create_task(
             if person:
                 assignees.append(person)
 
-    task = gazu.task.new_task(
-        entity=entity,
-        task_type=task_type,
-        assignees=assignees or None,
-    )
+    if entity_type == "edit":
+        # Edits require a dedicated API endpoint
+        result = gazu.raw.post(
+            f"actions/projects/{project['id']}/task-types/{task_type['id']}/edits/create-tasks",
+            {},
+        )
+        if not result:
+            return {"error": "Failed to create task for edit"}
+        task = result[0] if isinstance(result, list) else result
+        # Assign people if requested
+        if assignees:
+            for person in assignees:
+                gazu.task.assign_task(task, person)
+    else:
+        task = gazu.task.new_task(
+            entity=entity,
+            task_type=task_type,
+            assignees=assignees or None,
+        )
     return _slim_entity(task)
 
 
@@ -2164,6 +2185,137 @@ def create_edit(project_name: str, name: str, description: str = "") -> dict:
 
     edit = gazu.edit.new_edit(project=project, name=name, description=description or None)
     return _slim_entity(edit)
+
+
+@mcp.tool()
+def get_edit_details(project_name: str, edit_name: str) -> dict:
+    """Get detailed information about an edit including tasks and previews.
+
+    Args:
+        project_name: The name of the project
+        edit_name: The name of the edit
+    """
+    project, err = _resolve_project(project_name)
+    if err:
+        return err
+
+    entity, err = _resolve_entity(project, edit_name, "edit")
+    if err:
+        return err
+
+    tasks = gazu.task.all_tasks_for_edit(entity)
+    previews = gazu.edit.all_previews_for_edit(entity)
+
+    return {
+        "edit": _slim_entity(entity),
+        "tasks": _slim_list(tasks),
+        "previews": [
+            {
+                "id": p.get("id"),
+                "revision": p.get("revision"),
+                "created_at": p.get("created_at"),
+                "extension": p.get("extension"),
+                "original_name": p.get("original_name"),
+                "task_id": p.get("task_id"),
+            }
+            for group in previews
+            for p in (group if isinstance(group, list) else [group])
+        ],
+    }
+
+
+@mcp.tool()
+def update_edit(
+    project_name: str,
+    edit_name: str,
+    new_name: str | None = None,
+    description: str | None = None,
+) -> dict:
+    """Update an edit's name or description.
+
+    Args:
+        project_name: The name of the project
+        edit_name: The current name of the edit
+        new_name: Optional new name for the edit
+        description: Optional new description
+    """
+    project, err = _resolve_project(project_name)
+    if err:
+        return err
+
+    entity, err = _resolve_entity(project, edit_name, "edit")
+    if err:
+        return err
+
+    data = {}
+    if new_name:
+        data["name"] = new_name
+    if description is not None:
+        data["description"] = description
+
+    if not data:
+        return {"error": "Nothing to update — provide new_name or description"}
+
+    updated = gazu.edit.update_edit(entity, data)
+    return _slim_entity(updated)
+
+
+@mcp.tool()
+def delete_edit(
+    project_name: str, edit_name: str, confirm: bool = False
+) -> dict:
+    """Delete an edit. Requires confirm=True as safety check.
+
+    Args:
+        project_name: The name of the project
+        edit_name: The name of the edit to delete
+        confirm: Must be True to proceed with deletion
+    """
+    if not confirm:
+        return {"error": "Set confirm=True to delete this edit"}
+
+    project, err = _resolve_project(project_name)
+    if err:
+        return err
+
+    entity, err = _resolve_entity(project, edit_name, "edit")
+    if err:
+        return err
+
+    gazu.edit.remove_edit(entity)
+    return {"success": True, "deleted": edit_name}
+
+
+@mcp.tool()
+def list_previews_for_edit(project_name: str, edit_name: str) -> list[dict]:
+    """List all preview files (video/image uploads) for an edit.
+
+    Args:
+        project_name: The name of the project
+        edit_name: The name of the edit
+    """
+    project, err = _resolve_project(project_name)
+    if err:
+        return [err]
+
+    entity, err = _resolve_entity(project, edit_name, "edit")
+    if err:
+        return [err]
+
+    previews = gazu.edit.all_previews_for_edit(entity)
+    result = []
+    for group in previews:
+        items = group if isinstance(group, list) else [group]
+        for p in items:
+            result.append({
+                "id": p.get("id"),
+                "revision": p.get("revision"),
+                "created_at": p.get("created_at"),
+                "extension": p.get("extension"),
+                "original_name": p.get("original_name"),
+                "task_id": p.get("task_id"),
+            })
+    return result
 
 
 # ============================================================
