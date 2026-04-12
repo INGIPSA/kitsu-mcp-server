@@ -669,6 +669,32 @@ def assign_task(task_id: str, person_email: str) -> dict:
 
 
 @mcp.tool()
+def unassign_task(task_id: str, person_email: str | None = None) -> dict:
+    """Remove a person from a task. If no person is specified, all assignees are cleared.
+
+    Args:
+        task_id: The UUID of the task
+        person_email: Email of the person to remove. If omitted, clears all assignees.
+    """
+    task, err = _resolve_task(task_id)
+    if err:
+        return err
+
+    person = None
+    if person_email:
+        person, err = _resolve_person(person_email)
+        if err:
+            return err
+
+    gazu.task.clear_assignations(task, person=person)
+    return {
+        "success": True,
+        "task_id": task_id,
+        "unassigned": person["full_name"] if person else "all",
+    }
+
+
+@mcp.tool()
 def set_task_estimate(task_id: str, days: float) -> dict:
     """Set the time estimate for a task in days.
 
