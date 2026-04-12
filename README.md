@@ -6,26 +6,38 @@ Built with [FastMCP](https://github.com/jlowin/fastmcp) and the [Gazu](https://g
 
 ## Features
 
-**71 tools** covering the full Kitsu production pipeline:
+**76 tools** covering the full Kitsu production pipeline:
 
 | Category | Tools |
 |----------|-------|
 | **Projects** | List, overview, stats, create, close |
 | **Assets** | List, details, create, update, delete, asset types, CSV import/export |
 | **Shots & Sequences** | List, details, create, update, delete, batch create, CSV import/export, OTIO import |
-| **Tasks** | List, details, create, batch create, assign, update status, set estimates, delete |
+| **Tasks** | List, details, create, batch create, assign, **unassign**, update status, set estimates, delete |
 | **Time Tracking** | Add, set, get time spent |
 | **Comments** | Add comments, list comment history |
-| **Previews** | Upload preview, publish preview (status + comment + file in one) |
+| **Previews** | Upload preview, publish preview (status + comment + file in one), set main preview |
 | **Casting** | Get/set shot casting, get asset casting |
-| **Team & People** | List team, person tasks, create person, departments |
+| **Team & People** | List team, update roles, add/remove members, person tasks, create person, invite, departments |
 | **Playlists** | List, create, add entities, build movie |
 | **Budgets** | List, create budgets and budget entries |
 | **Concepts** | List, create concepts |
-| **Edits** | List, create edits |
+| **Edits** | List, create, **details, update, delete, list previews** |
 | **Scenes** | List, create scenes |
 | **Metadata** | List and add custom metadata descriptors |
 | **Other** | Search, notifications, task statuses, daily progress report |
+
+### Edit / Montage Review Workflow
+
+Edits are full-length montages or sequences (like animatics, trailers, or final cuts) — the Kitsu equivalent of Frame.io's file-based review. Upload a complete video with audio and review it with annotations, comments, and version tracking.
+
+```
+1. create_edit("My Project", "Trailer_v03")
+2. create_task("My Project", "Trailer_v03", "Edit", entity_type="edit")
+3. upload_preview(task_id, "/path/to/trailer_v03.mp4", comment="v3 with music")
+```
+
+The team can then review the full montage in Kitsu's player with drawing/annotation tools and timecoded comments.
 
 ## Requirements
 
@@ -55,7 +67,7 @@ The server requires three environment variables:
 
 ### With Claude Code
 
-Add to your Claude Code MCP config (`~/.claude/claude_desktop_config.json` or project-level `.mcp.json`):
+Add to your Claude Code MCP config (`~/.claude/mcp.json` or project-level `.mcp.json`):
 
 ```json
 {
@@ -96,10 +108,12 @@ Once connected, you can ask your AI assistant things like:
 - "Upload this render as a preview for the lighting task on SH020"
 - "What happened in the project in the last 24 hours?"
 - "Assign the animation task on SH030 to anna@studio.com"
+- "Remove anna@studio.com from the modeling task on Capsule"
 - "Add 4 hours of work on this task for today"
 - "Export all shots to CSV"
 - "Create a new playlist and add all shots from SQ01"
-- "What are the budget entries for this project?"
+- "Create an edit called Trailer_v01 and upload the montage for review"
+- "Show me the details and previews for edit Animatic_v2"
 
 ## Available tools
 
@@ -113,7 +127,7 @@ Once connected, you can ask your AI assistant things like:
 - `list_shots` — List shots (optionally filtered by sequence)
 - `get_shot_details` — Shot details with tasks and casting
 - `list_my_tasks` — Tasks assigned to logged-in user
-- `list_tasks_for_entity` — Tasks for a specific asset or shot
+- `list_tasks_for_entity` — Tasks for a specific asset, shot, or edit
 - `get_task_details` — Task details with comment history
 - `get_time_spent` — Time entries for a task
 - `list_comments` — Comments on a task
@@ -129,6 +143,8 @@ Once connected, you can ask your AI assistant things like:
 - `daily_progress_report` — Activity summary for last N hours
 - `list_concepts` — Concepts in a project
 - `list_edits` — Edits in a project
+- `get_edit_details` — Edit details with tasks and previews
+- `list_previews_for_edit` — All preview files for an edit
 - `list_scenes` — Scenes in a project
 - `list_metadata_descriptors` — Custom metadata fields
 - `get_budgets` — Budgets for a project
@@ -143,30 +159,36 @@ Once connected, you can ask your AI assistant things like:
 - `create_episode` — Create an episode
 - `create_sequence` — Create a sequence
 - `create_shot` — Create a shot
-- `create_task` — Create a task with optional assignees
+- `create_task` — Create a task for an asset, shot, or edit
 - `create_person` — Create a new user
+- `invite_person` — Send invitation email to a user
 - `create_department` — Create a department
 - `create_playlist` — Create a playlist
 - `create_budget` — Create a budget
 - `create_budget_entry` — Create a budget entry
 - `create_concept` — Create a concept
-- `create_edit` — Create an edit
+- `create_edit` — Create an edit (montage/sequence for review)
 - `create_scene` — Create a scene
 - `add_metadata_descriptor` — Add a custom metadata field
 
 ### Update
 - `update_task_status` — Change task status with optional comment
 - `assign_task` — Assign a person to a task
+- `unassign_task` — Remove a person from a task (or clear all assignees)
 - `set_task_estimate` — Set time estimate for a task
 - `add_comment` — Add a comment to a task
 - `set_shot_casting` — Set which assets appear in a shot
 - `update_asset` — Update asset description/metadata
 - `update_shot` — Update shot description/frames/metadata
+- `update_edit` — Update edit name/description
+- `update_team_member_role` — Change a team member's role
 - `add_time_spent` — Add time spent on a task
 - `set_time_spent` — Set time spent on a task
 - `add_person_to_department` — Add person to department
 - `remove_person_from_department` — Remove person from department
 - `add_entity_to_playlist` — Add shot/asset to playlist
+- `add_team_member` — Add a person to a project team
+- `set_main_preview` — Set a preview as the main thumbnail
 
 ### Batch
 - `batch_create_shots` — Create multiple shots at once (e.g. SH010-SH200)
@@ -185,8 +207,26 @@ Once connected, you can ask your AI assistant things like:
 - `delete_shot` — Delete a shot
 - `delete_asset` — Delete an asset
 - `delete_task` — Delete a task
+- `delete_edit` — Delete an edit
 - `close_project` — Close/archive a project
 - `build_playlist_movie` — Build a movie from playlist
+
+## Changelog
+
+### v0.3.0 (2026-04-12)
+- **Edit entity support**: Full CRUD for Edits — create tasks on edits, get details with previews, update, delete
+- **Unassign task**: Remove specific people or clear all assignees from a task
+- **Edit review workflow**: Upload full montages/animatics for team review with annotations (Frame.io-like)
+
+### v0.2.0
+- Team management: add/remove members, update roles, invite users
+- Departments: create, add/remove people
+- Metadata descriptors
+- Budget management
+- Concepts, scenes, edits (basic create/list)
+
+### v0.1.0
+- Initial release with 60+ tools covering projects, assets, shots, tasks, previews, playlists
 
 ## License
 
