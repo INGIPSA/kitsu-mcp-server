@@ -706,7 +706,8 @@ def set_task_estimate(task_id: str, days: float) -> dict:
     if err:
         return err
 
-    gazu.task.update_task(task, {"estimation": days})
+    task["estimation"] = days
+    gazu.task.update_task(task)
     return {"success": True, "task_id": task_id, "estimation_days": days}
 
 
@@ -740,7 +741,8 @@ def update_task_dates(
     if not update:
         return {"error": "Provide at least one of: start_date, due_date, estimation"}
 
-    gazu.task.update_task(task, update)
+    task.update(update)
+    gazu.task.update_task(task)
 
     result = {"success": True, "task_id": task_id}
     result.update(update)
@@ -785,7 +787,8 @@ def batch_update_task_dates(
             continue
 
         try:
-            gazu.task.update_task(task, payload)
+            task.update(payload)
+            gazu.task.update_task(task)
             results.append({"success": True, "task_id": tid, **payload})
         except Exception as e:
             results.append({"error": str(e), "task_id": tid})
