@@ -2439,6 +2439,482 @@ def add_metadata_descriptor(
 
 
 # ============================================================
+# TASK WORKFLOW: start, submit for review, reply, acknowledge
+# ============================================================
+
+
+@mcp.tool()
+def start_task(task_id: str, person_email: str | None = None) -> dict:
+    """Start a task — set it to WIP (Work In Progress).
+
+    Args:
+        task_id: The UUID of the task
+        person_email: Optional email of the person starting the task. Defaults to current user.
+    """
+    task, err = _resolve_task(task_id)
+    if err:
+        return err
+
+    person = None
+    if person_email:
+        person, err = _resolve_person(person_email)
+        if err:
+            return err
+
+    result = gazu.task.start_task(task, person=person)
+    return _slim_entity(result)
+
+
+@mcp.tool()
+def submit_for_review(
+    task_id: str, person_email: str, comment: str = "", revision: int = 1
+) -> dict:
+    """Submit a task for supervisor review (changes status to WFA).
+
+    Args:
+        task_id: The UUID of the task
+        person_email: Email of the person submitting
+        comment: Optional comment text
+        revision: Revision number (default 1)
+    """
+    task, err = _resolve_task(task_id)
+    if err:
+        return err
+
+    person, err = _resolve_person(person_email)
+    if err:
+        return err
+
+    result = gazu.task.task_to_review(
+        task, person, comment=comment, revision=revision
+    )
+    return {
+        "success": True,
+        "task_id": task_id,
+        "status": "wfa",
+        "comment": result.get("text", comment),
+    }
+
+
+@mcp.tool()
+def reply_to_comment(comment_id: str, text: str) -> dict:
+    """Reply to a specific comment (threaded reply).
+
+    Args:
+        comment_id: The UUID of the comment to reply to
+        text: Reply text
+    """
+    try:
+        result = gazu.task.reply_to_comment({"id": comment_id}, text)
+        return {
+            "success": True,
+            "comment_id": comment_id,
+            "reply_id": result.get("id"),
+            "text": text,
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@mcp.tool()
+def acknowledge_comment(task_id: str, comment_id: str) -> dict:
+    """Acknowledge a comment on a task (mark as read/seen by supervisor).
+
+    Args:
+        task_id: The UUID of the task
+        comment_id: The UUID of the comment to acknowledge
+    """
+    task, err = _resolve_task(task_id)
+    if err:
+        return err
+
+    try:
+        gazu.task.acknowledge_comment(task, {"id": comment_id})
+        return {"success": True, "task_id": task_id, "comment_id": comment_id}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# ============================================================
+# CUSTOM DATA: update metadata dicts on entities
+# ============================================================
+
+
+@mcp.tool()
+def update_asset_data(project_name: str, asset_name: str, data: str) -> dict:
+    """Update the custom data dictionary on an asset. Merges with existing data.
+
+    Args:
+        project_name: The name of the project
+        asset_name: The name of the asset
+        data: JSON string of key-value pairs to set (e.g. '{"complexity": "high", "notes": "needs retopo"}')
+    """
+    project, err = _resolve_project(project_name)
+    if err:
+        return err
+
+    entity, err = _resolve_entity(project, asset_name, "asset")
+    if err:
+        return err
+
+    try:
+        parsed = json.loads(data)
+    except json.JSONDecodeError as e:
+        return {"error": f"Invalid JSON: {e}"}
+
+    result = gazu.asset.update_asset_data(entity, parsed)
+    return {"success": True, "asset": asset_name, "data": result.get("data", {})}
+
+
+@mcp.tool()
+def update_shot_data(
+    project_name: str, sequence_name: str, shot_name: str, data: str
+) -> dict:
+    """Update the custom data dictionary on a shot. Merges with existing data.
+
+    Args:
+        project_name: The name of the project
+        sequence_name: The name of the sequence
+        shot_name: The name of the shot
+        data: JSON string of key-value pairs to set (e.g. '{"frame_range": "1001-1120", "complexity": "medium"}')
+    """
+    project, err = _resolve_project(project_name)
+    if err:
+        return err
+
+    entity, err = _resolve_entity(project, shot_name, "shot")
+    if err:
+        return err
+
+    try:
+        parsed = json.loads(data)
+    except json.JSONDecodeError as e:
+        return {"error": f"Invalid JSON: {e}"}
+
+    result = gazu.shot.update_shot_data(entity, parsed)
+    return {"success": True, "shot": shot_name, "data": result.get("data", {})}
+
+
+@mcp.tool()
+def update_task_data(task_id: str, data: str) -> dict:
+    """Update the custom data dictionary on a task. Merges with existing data.
+
+    Args:
+        task_id: The UUID of the task
+        data: JSON string of key-value pairs to set (e.g. '{"priority": "urgent", "render_farm": true}')
+    """
+    task, err = _resolve_task(task_id)
+    if err:
+        return err
+
+    try:
+        parsed = json.loads(data)
+    except json.JSONDecodeError as e:
+        return {"error": f"Invalid JSON: {e}"}
+
+    result = gazu.task.update_task_data(task, parsed)
+    return {"success": True, "task_id": task_id, "data": result.get("data", {})}
+
+
+# ============================================================
+# PREVIEW FILES: URLs, download, annotations
+# ============================================================
+
+
+@mcp.tool()
+def get_preview_file_url(preview_id: str) -> dict:
+    """Get the direct URL for a preview file (image or video).
+
+    Args:
+        preview_id: The UUID of the preview file
+    """
+    try:
+        url = gazu.files.get_preview_file_url({"id": preview_id})
+        movie_url = gazu.files.get_preview_movie_url({"id": preview_id})
+        return {
+            "preview_id": preview_id,
+            "image_url": url,
+            "movie_url": movie_url,
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@mcp.tool()
+def download_preview_file(preview_id: str, output_path: str) -> dict:
+    """Download a preview file (image/video) to a local path.
+
+    Args:
+        preview_id: The UUID of the preview file
+        output_path: Absolute path where the file should be saved
+    """
+    try:
+        gazu.files.download_preview_file({"id": preview_id}, output_path)
+        return {"success": True, "preview_id": preview_id, "path": output_path}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@mcp.tool()
+def update_preview_annotations(
+    preview_id: str,
+    additions: str | None = None,
+    updates: str | None = None,
+    deletions: str | None = None,
+) -> dict:
+    """Add, update, or remove annotations on a preview file.
+
+    Args:
+        preview_id: The UUID of the preview file
+        additions: JSON string of annotation objects to add
+        updates: JSON string of annotation objects to update
+        deletions: JSON string of annotation IDs to delete
+    """
+    try:
+        add_list = json.loads(additions) if additions else None
+        upd_list = json.loads(updates) if updates else None
+        del_list = json.loads(deletions) if deletions else None
+    except json.JSONDecodeError as e:
+        return {"error": f"Invalid JSON: {e}"}
+
+    try:
+        result = gazu.files.update_preview_annotations(
+            {"id": preview_id},
+            additions=add_list,
+            updates=upd_list,
+            deletions=del_list,
+        )
+        return {"success": True, "preview_id": preview_id, "result": result}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@mcp.tool()
+def list_preview_files_for_task(task_id: str) -> list[dict]:
+    """List all preview files uploaded to a task.
+
+    Args:
+        task_id: The UUID of the task
+    """
+    task, err = _resolve_task(task_id)
+    if err:
+        return [err]
+
+    previews = gazu.files.get_all_preview_files_for_task(task)
+    return [
+        {
+            "id": p.get("id"),
+            "revision": p.get("revision"),
+            "extension": p.get("extension"),
+            "original_name": p.get("original_name"),
+            "created_at": p.get("created_at"),
+            "status": p.get("status"),
+        }
+        for p in previews
+    ]
+
+
+@mcp.tool()
+def list_attachment_files_for_task(task_id: str) -> list[dict]:
+    """List all attachment files on a task.
+
+    Args:
+        task_id: The UUID of the task
+    """
+    task, err = _resolve_task(task_id)
+    if err:
+        return [err]
+
+    try:
+        attachments = gazu.files.get_all_attachment_files_for_task(task)
+        return [
+            {
+                "id": a.get("id"),
+                "name": a.get("name"),
+                "extension": a.get("extension"),
+                "created_at": a.get("created_at"),
+            }
+            for a in attachments
+        ]
+    except Exception as e:
+        return [{"error": str(e)}]
+
+
+# ============================================================
+# SCHEDULE: time spent ranges
+# ============================================================
+
+
+@mcp.tool()
+def get_time_spents_range(
+    person_email: str, start_date: str, end_date: str
+) -> list[dict]:
+    """Get time spent by a person over a date range.
+
+    Args:
+        person_email: Email of the person
+        start_date: Start date (YYYY-MM-DD)
+        end_date: End date (YYYY-MM-DD)
+    """
+    person, err = _resolve_person(person_email)
+    if err:
+        return [err]
+
+    try:
+        entries = gazu.person.get_time_spents_range(
+            person["id"], start_date, end_date
+        )
+        return entries if entries else []
+    except Exception as e:
+        return [{"error": str(e)}]
+
+
+# ============================================================
+# NOTIFICATIONS: mark read, subscriptions
+# ============================================================
+
+
+@mcp.tool()
+def mark_all_notifications_as_read() -> dict:
+    """Mark all notifications as read for the current user."""
+    try:
+        gazu.raw.put("actions/user/notifications/mark-all-as-read", {})
+        return {"success": True}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@mcp.tool()
+def subscribe_to_task(task_id: str) -> dict:
+    """Subscribe to notifications for a task.
+
+    Args:
+        task_id: The UUID of the task
+    """
+    try:
+        gazu.raw.post(f"actions/user/tasks/{task_id}/subscribe", {})
+        return {"success": True, "task_id": task_id, "subscribed": True}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@mcp.tool()
+def unsubscribe_from_task(task_id: str) -> dict:
+    """Unsubscribe from notifications for a task.
+
+    Args:
+        task_id: The UUID of the task
+    """
+    try:
+        gazu.raw.delete(f"actions/user/tasks/{task_id}/unsubscribe", {})
+        return {"success": True, "task_id": task_id, "subscribed": False}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# ============================================================
+# PLAYLIST: remove entity
+# ============================================================
+
+
+@mcp.tool()
+def remove_entity_from_playlist(playlist_id: str, entity_id: str) -> dict:
+    """Remove an entity (shot/asset) from a playlist.
+
+    Args:
+        playlist_id: The UUID of the playlist
+        entity_id: The UUID of the entity to remove
+    """
+    try:
+        playlist = gazu.raw.get(f"data/playlists/{playlist_id}")
+        if not playlist:
+            return {"error": f"Playlist '{playlist_id}' not found"}
+
+        shots = playlist.get("shots", [])
+        new_shots = [s for s in shots if s.get("entity_id") != entity_id]
+        if len(new_shots) == len(shots):
+            return {"error": f"Entity '{entity_id}' not found in playlist"}
+
+        gazu.raw.put(f"data/playlists/{playlist_id}", {"shots": new_shots})
+        return {
+            "success": True,
+            "playlist_id": playlist_id,
+            "removed": entity_id,
+            "remaining": len(new_shots),
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# ============================================================
+# PROJECT: task type management
+# ============================================================
+
+
+@mcp.tool()
+def add_task_type_to_project(
+    project_name: str, task_type_name: str
+) -> dict:
+    """Add a task type to a project so it can be used for tasks.
+
+    Args:
+        project_name: The name of the project
+        task_type_name: The name of the task type to add
+    """
+    project, err = _resolve_project(project_name)
+    if err:
+        return err
+
+    task_type = gazu.task.get_task_type_by_name(task_type_name)
+    if not task_type:
+        return {"error": f"Task type '{task_type_name}' not found globally"}
+
+    try:
+        gazu.raw.post(
+            f"data/projects/{project['id']}/settings/task-types",
+            {"task_type_id": task_type["id"]},
+        )
+        return {
+            "success": True,
+            "project": project_name,
+            "task_type": task_type_name,
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@mcp.tool()
+def remove_task_type_from_project(
+    project_name: str, task_type_name: str
+) -> dict:
+    """Remove a task type from a project.
+
+    Args:
+        project_name: The name of the project
+        task_type_name: The name of the task type to remove
+    """
+    project, err = _resolve_project(project_name)
+    if err:
+        return err
+
+    task_type, err = _resolve_task_type(project, task_type_name)
+    if err:
+        return err
+
+    try:
+        gazu.raw.delete(
+            f"data/projects/{project['id']}/settings/task-types/{task_type['id']}"
+        )
+        return {
+            "success": True,
+            "project": project_name,
+            "removed": task_type_name,
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# ============================================================
 
 if __name__ == "__main__":
     mcp.run(transport="stdio")
