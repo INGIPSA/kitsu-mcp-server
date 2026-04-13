@@ -711,6 +711,95 @@ def set_task_estimate(task_id: str, days: float) -> dict:
 
 
 @mcp.tool()
+def update_task_dates(
+    task_id: str,
+    start_date: str = None,
+    due_date: str = None,
+    estimation: float = None,
+) -> dict:
+    """Set start date, due date, and/or estimation on a task. Dates appear on the Kitsu schedule/Gantt view.
+
+    Args:
+        task_id: The UUID of the task
+        start_date: Start date in YYYY-MM-DD format (optional)
+        due_date: Due date in YYYY-MM-DD format (optional)
+        estimation: Estimated duration in days (optional)
+    """
+    task, err = _resolve_task(task_id)
+    if err:
+        return err
+
+    update = {}
+    if start_date is not None:
+        update["start_date"] = start_date
+    if due_date is not None:
+        update["due_date"] = due_date
+    if estimation is not None:
+        update["estimation"] = estimation
+
+    if not update:
+        return {"error": "Provide at least one of: start_date, due_date, estimation"}
+
+    gazu.task.update_task(task, update)
+
+    result = {"success": True, "task_id": task_id}
+    result.update(update)
+    return result
+
+
+@mcp.tool()
+def batch_update_task_dates(
+    updates: list[dict],
+) -> dict:
+    """Set start/due dates on multiple tasks at once. Ideal for populating a full schedule.
+
+    Args:
+        updates: List of dicts, each with: task_id (required), start_date (YYYY-MM-DD), due_date (YYYY-MM-DD), estimation (days). At least one date/estimation per entry.
+
+    Example:
+        [{"task_id": "abc-123", "start_date": "2026-04-02", "due_date": "2026-04-13"},
+         {"task_id": "def-456", "start_date": "2026-04-13", "due_date": "2026-04-20", "estimation": 5}]
+    """
+    if not updates:
+        return {"error": "Provide a non-empty list of updates"}
+
+    results = []
+    for entry in updates:
+        tid = entry.get("task_id")
+        if not tid:
+            results.append({"error": "Missing task_id in entry", "entry": entry})
+            continue
+
+        task, err = _resolve_task(tid)
+        if err:
+            results.append(err)
+            continue
+
+        payload = {}
+        for key in ("start_date", "due_date", "estimation"):
+            if key in entry and entry[key] is not None:
+                payload[key] = entry[key]
+
+        if not payload:
+            results.append({"error": "No date fields provided", "task_id": tid})
+            continue
+
+        try:
+            gazu.task.update_task(task, payload)
+            results.append({"success": True, "task_id": tid, **payload})
+        except Exception as e:
+            results.append({"error": str(e), "task_id": tid})
+
+    succeeded = sum(1 for r in results if r.get("success"))
+    return {
+        "total": len(updates),
+        "succeeded": succeeded,
+        "failed": len(updates) - succeeded,
+        "details": results,
+    }
+
+
+@mcp.tool()
 def delete_task(task_id: str, confirm: bool = False) -> dict:
     """Delete a task. Requires confirm=True as safety check.
 
