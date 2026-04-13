@@ -2498,7 +2498,7 @@ def submit_for_review(
 
 @mcp.tool()
 def reply_to_comment(comment_id: str, text: str) -> dict:
-    """Reply to a specific comment (threaded reply).
+    """Reply to a specific comment (threaded reply). Requires Zou >= 0.21.
 
     Args:
         comment_id: The UUID of the comment to reply to
@@ -2511,6 +2511,14 @@ def reply_to_comment(comment_id: str, text: str) -> dict:
             "comment_id": comment_id,
             "reply_id": result.get("id"),
             "text": text,
+        }
+    except (
+        gazu.exception.MethodNotAllowedException,
+        gazu.exception.RouteNotFoundException,
+    ):
+        return {
+            "error": "reply_to_comment requires Zou >= 0.21. "
+            "Your server does not support threaded replies yet."
         }
     except Exception as e:
         return {"error": str(e)}
@@ -2778,7 +2786,7 @@ def get_time_spents_range(
 def mark_all_notifications_as_read() -> dict:
     """Mark all notifications as read for the current user."""
     try:
-        gazu.raw.put("actions/user/notifications/mark-all-as-read", {})
+        gazu.raw.post("actions/user/notifications/mark-all-as-read", {})
         return {"success": True}
     except Exception as e:
         return {"error": str(e)}
