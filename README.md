@@ -6,26 +6,28 @@ Built with [FastMCP](https://github.com/jlowin/fastmcp) and the [Gazu](https://g
 
 ## Features
 
-**76 tools** covering the full Kitsu production pipeline:
+**95 tools** covering the full Kitsu production pipeline:
 
 | Category | Tools |
 |----------|-------|
-| **Projects** | List, overview, stats, create, close |
-| **Assets** | List, details, create, update, delete, asset types, CSV import/export |
-| **Shots & Sequences** | List, details, create, update, delete, batch create, CSV import/export, OTIO import |
-| **Tasks** | List, details, create, batch create, assign, **unassign**, update status, set estimates, delete |
-| **Time Tracking** | Add, set, get time spent |
-| **Comments** | Add comments, list comment history |
-| **Previews** | Upload preview, publish preview (status + comment + file in one), set main preview |
+| **Projects** | List, overview, stats, create, close, add/remove task types |
+| **Assets** | List, details, create, update, delete, **update custom data**, asset types, CSV import/export |
+| **Shots & Sequences** | List, details, create, update, delete, **update custom data**, batch create, CSV import/export, OTIO import |
+| **Tasks** | List, details, create, batch create, assign, unassign, **start task**, **submit for review**, **update custom data**, update status, set estimates, delete |
+| **Time Tracking** | Add, set, get time spent, **get time spent range** |
+| **Comments** | Add comments, **reply to comment**, **acknowledge comment**, list comment history |
+| **Previews** | Upload, publish, set main, **list per task**, **get URLs**, **download**, **update annotations** |
+| **Attachments** | **List attachment files per task** |
 | **Casting** | Get/set shot casting, get asset casting |
 | **Team & People** | List team, update roles, add/remove members, person tasks, create person, invite, departments |
-| **Playlists** | List, create, add entities, build movie |
+| **Playlists** | List, create, add entities, **remove entities**, build movie |
 | **Budgets** | List, create budgets and budget entries |
 | **Concepts** | List, create concepts |
-| **Edits** | List, create, **details, update, delete, list previews** |
+| **Edits** | List, create, details, update, delete, list previews |
 | **Scenes** | List, create scenes |
 | **Metadata** | List and add custom metadata descriptors |
-| **Other** | Search, notifications, task statuses, daily progress report |
+| **Notifications** | List, **mark all as read**, **subscribe/unsubscribe from tasks** |
+| **Other** | Search, task statuses, daily progress report |
 
 ### Edit / Montage Review Workflow
 
@@ -139,6 +141,10 @@ Once connected, you can ask your AI assistant things like:
 - `list_playlists` — Playlists in a project
 - `list_task_statuses` — Available task statuses
 - `list_notifications` — Recent notifications
+- `list_preview_files_for_task` — All preview files for a task
+- `list_attachment_files_for_task` — All attachment files for a task
+- `get_preview_file_url` — Direct image/video URLs for a preview
+- `get_time_spents_range` — Time spent by person over a date range
 - `search` — Search entities by name
 - `daily_progress_report` — Activity summary for last N hours
 - `list_concepts` — Concepts in a project
@@ -189,6 +195,20 @@ Once connected, you can ask your AI assistant things like:
 - `add_entity_to_playlist` — Add shot/asset to playlist
 - `add_team_member` — Add a person to a project team
 - `set_main_preview` — Set a preview as the main thumbnail
+- `start_task` — Start a task (set to WIP)
+- `submit_for_review` — Submit task for supervisor review (WFA)
+- `reply_to_comment` — Threaded reply to a comment
+- `acknowledge_comment` — Mark a comment as acknowledged
+- `update_asset_data` — Update custom metadata on an asset
+- `update_shot_data` — Update custom metadata on a shot
+- `update_task_data` — Update custom metadata on a task
+- `update_preview_annotations` — Add/edit/remove annotations on a preview
+- `mark_all_notifications_as_read` — Clear all notifications
+- `subscribe_to_task` — Subscribe to task notifications
+- `unsubscribe_from_task` — Unsubscribe from task notifications
+- `remove_entity_from_playlist` — Remove entity from a playlist
+- `add_task_type_to_project` — Add a task type to a project
+- `remove_task_type_from_project` — Remove a task type from a project
 
 ### Batch
 - `batch_create_shots` — Create multiple shots at once (e.g. SH010-SH200)
@@ -197,6 +217,7 @@ Once connected, you can ask your AI assistant things like:
 ### Preview
 - `upload_preview` — Upload a preview file to a task
 - `publish_preview` — Status + comment + preview in one step
+- `download_preview_file` — Download a preview file to local path
 
 ### Import/Export
 - `import_assets_csv` — Import assets from CSV
@@ -212,6 +233,16 @@ Once connected, you can ask your AI assistant things like:
 - `build_playlist_movie` — Build a movie from playlist
 
 ## Changelog
+
+### v0.4.0 (2026-04-13)
+- **Task workflow**: `start_task` (WIP), `submit_for_review` (WFA), `reply_to_comment`, `acknowledge_comment`
+- **Custom data**: `update_asset_data`, `update_shot_data`, `update_task_data` — set custom metadata dicts
+- **Preview files**: `get_preview_file_url`, `download_preview_file`, `update_preview_annotations`, `list_preview_files_for_task`
+- **Attachments**: `list_attachment_files_for_task`
+- **Schedule**: `get_time_spents_range` — query time entries over date ranges
+- **Notifications**: `mark_all_notifications_as_read`, `subscribe_to_task`, `unsubscribe_from_task`
+- **Playlist**: `remove_entity_from_playlist`
+- **Project**: `add_task_type_to_project`, `remove_task_type_from_project`
 
 ### v0.3.0 (2026-04-12)
 - **Edit entity support**: Full CRUD for Edits — create tasks on edits, get details with previews, update, delete
