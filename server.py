@@ -1800,6 +1800,39 @@ def list_task_statuses() -> list[dict]:
     ]
 
 
+@mcp.tool()
+def create_task_status(
+    name: str,
+    short_name: str,
+    color: str = "#CCCCCC",
+    is_done: bool = False,
+    is_reviewable: bool = False,
+) -> dict:
+    """Create a new task status in Kitsu.
+
+    Args:
+        name: Display name (e.g. 'Blocked', 'On Hold', 'Client Review')
+        short_name: Short code used in API calls (e.g. 'blocked', 'hold', 'cr')
+        color: Hex color code (default '#CCCCCC')
+        is_done: Whether this status marks the task as finished (default False)
+        is_reviewable: Whether tasks in this status appear in review queues (default False)
+    """
+    existing = gazu.task.get_task_status_by_short_name(short_name.lower())
+    if existing:
+        return {"already_exists": True, **_slim_entity(existing)}
+
+    payload = {
+        "name": name,
+        "short_name": short_name.lower(),
+        "color": color,
+        "is_done": is_done,
+        "is_reviewable": is_reviewable,
+    }
+
+    task_status = gazu.client.post("data/task-status", payload)
+    return _slim_entity(task_status)
+
+
 # ============================================================
 # NOTIFICATIONS
 # ============================================================
