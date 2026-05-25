@@ -6,7 +6,7 @@ Built with [FastMCP](https://github.com/jlowin/fastmcp) and the [Gazu](https://g
 
 ## Features
 
-**95 tools** covering the full Kitsu production pipeline:
+**98 tools** covering the full Kitsu production pipeline:
 
 | Category | Tools |
 |----------|-------|
@@ -27,7 +27,8 @@ Built with [FastMCP](https://github.com/jlowin/fastmcp) and the [Gazu](https://g
 | **Scenes** | List, create scenes |
 | **Metadata** | List and add custom metadata descriptors |
 | **Notifications** | List, **mark all as read**, **subscribe/unsubscribe from tasks** |
-| **Other** | Search, task statuses, daily progress report |
+| **Pipeline Config** | **List/create task types**, **list/create task statuses** |
+| **Other** | Search, daily progress report |
 
 ### Edit / Montage Review Workflow
 
@@ -139,6 +140,7 @@ Once connected, you can ask your AI assistant things like:
 - `get_person_tasks` — Tasks for a specific person
 - `list_departments` — All departments
 - `list_playlists` — Playlists in a project
+- `list_task_types` — All task types (global or per-project)
 - `list_task_statuses` — Available task statuses
 - `list_notifications` — Recent notifications
 - `list_preview_files_for_task` — All preview files for a task
@@ -175,6 +177,8 @@ Once connected, you can ask your AI assistant things like:
 - `create_concept` — Create a concept
 - `create_edit` — Create an edit (montage/sequence for review)
 - `create_scene` — Create a scene
+- `create_task_type` — Create a pipeline step (e.g. Grooming, FX, Setup)
+- `create_task_status` — Create a custom task status (e.g. Blocked, On Hold)
 - `add_metadata_descriptor` — Add a custom metadata field
 
 ### Update
@@ -233,6 +237,12 @@ Once connected, you can ask your AI assistant things like:
 - `build_playlist_movie` — Build a movie from playlist
 
 ## Changelog
+
+### v0.5.0 (2026-05-25)
+- **Pipeline configuration**: `create_task_type` — create pipeline steps (Grooming, FX, Setup, Concept) with color, priority, and entity scope (Asset/Shot/Edit)
+- **Pipeline configuration**: `list_task_types` — list all task types globally or filtered per project
+- **Pipeline configuration**: `create_task_status` — create custom workflow statuses (Blocked, On Hold, Client Review) with color, is_done, is_reviewable flags
+- 98 tools total
 
 ### v0.4.0 (2026-04-13)
 - **Task workflow**: `start_task` (WIP), `submit_for_review` (WFA), `reply_to_comment`, `acknowledge_comment`
