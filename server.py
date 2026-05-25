@@ -1714,6 +1714,72 @@ def search(query: str, project_name: str | None = None) -> list[dict]:
 
 
 # ============================================================
+# TASK TYPES (pipeline steps)
+# ============================================================
+
+
+@mcp.tool()
+def list_task_types(project_name: str | None = None) -> list[dict]:
+    """List all task types, optionally filtered to a project's pipeline.
+
+    Args:
+        project_name: Optional project name to show only that project's task types
+    """
+    if project_name:
+        project, err = _resolve_project(project_name)
+        if err:
+            return [err]
+        task_types = gazu.task.all_task_types_for_project(project)
+    else:
+        task_types = gazu.task.all_task_types()
+    return [
+        {
+            "id": tt["id"],
+            "name": tt["name"],
+            "color": tt.get("color"),
+            "priority": tt.get("priority"),
+            "for_entity": tt.get("for_entity", "Asset"),
+            "department_id": tt.get("department_id"),
+        }
+        for tt in task_types
+    ]
+
+
+@mcp.tool()
+def create_task_type(
+    name: str,
+    color: str = "#999999",
+    for_entity: str = "Asset",
+    priority: int = 1,
+    department_id: str | None = None,
+) -> dict:
+    """Create a new task type (pipeline step) in Kitsu.
+
+    Args:
+        name: Task type name (e.g. 'Grooming', 'FX', 'Setup', 'Concept')
+        color: Hex color code (default '#999999')
+        for_entity: Which pipeline — 'Asset', 'Shot', or 'Edit' (default 'Asset')
+        priority: Sort order priority (default 1)
+        department_id: Optional department UUID to associate with
+    """
+    existing = gazu.task.get_task_type_by_name(name)
+    if existing:
+        return {"already_exists": True, **_slim_entity(existing)}
+
+    payload = {
+        "name": name,
+        "color": color,
+        "for_entity": for_entity,
+        "priority": priority,
+    }
+    if department_id:
+        payload["department_id"] = department_id
+
+    task_type = gazu.client.post("data/task-types", payload)
+    return _slim_entity(task_type)
+
+
+# ============================================================
 # TASK STATUSES (reference)
 # ============================================================
 
