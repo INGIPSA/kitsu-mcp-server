@@ -660,7 +660,10 @@ def assign_task(task_id: str, person_email: str) -> dict:
     if err:
         return err
 
-    gazu.task.assign_task(task, person)
+    gazu.client.put(
+        f"actions/tasks/{task['id']}/assign",
+        {"person_id": person["id"]},
+    )
     return {
         "success": True,
         "task_id": task_id,
