@@ -1288,13 +1288,26 @@ def get_asset_casting(project_name: str, asset_name: str) -> list[dict]:
 # ============================================================
 
 
+def _has_project_memberships_api() -> bool:
+    """Check if this Zou instance supports data/project-memberships (Zou >=1.1)."""
+    if not hasattr(_has_project_memberships_api, "_cache"):
+        try:
+            gazu.client.get("data/project-memberships?page_size=1")
+            _has_project_memberships_api._cache = True
+        except Exception:
+            _has_project_memberships_api._cache = False
+    return _has_project_memberships_api._cache
+
+
 def _get_project_membership(project_id: str, person_id: str) -> tuple[dict | None, dict | None]:
     """Fetch the project-membership record for a person in a project.
 
     Returns (membership_dict, None) on success or (None, error_dict) on failure.
-    Project-memberships store the *project* role (artist/client/…), which is
-    separate from the global Person role (user/admin/manager).
+    On Zou <1.1 where project-memberships API is unavailable, returns a
+    synthetic record with role='unknown'.
     """
+    if not _has_project_memberships_api():
+        return {"id": None, "role": "unknown", "note": "project-memberships API not available (Zou <1.1)"}, None
     try:
         memberships = gazu.client.get(
             f"data/project-memberships?project_id={project_id}&person_id={person_id}"
@@ -1310,7 +1323,10 @@ def _set_membership_role(membership_id: str, role: str) -> dict | None:
     """PUT the new role on an existing project-membership record.
 
     Returns an error dict on failure, None on success.
+    On Zou <1.1, returns an informational error (no-op).
     """
+    if membership_id is None:
+        return {"error": "Project roles require Zou >=1.1. Set the role manually in the Kitsu UI (Team tab)."}
     try:
         gazu.client.put(
             f"data/project-memberships/{membership_id}",
@@ -1332,23 +1348,29 @@ def list_team_members(project_name: str) -> list[dict]:
     if err:
         return [err]
 
-    # Fetch persons and their project-membership roles in parallel
     team = gazu.project.get_team(project)
-    try:
-        memberships = gazu.client.get(
-            f"data/project-memberships?project_id={project['id']}"
-        )
-        role_by_person = {m["person_id"]: m.get("role", "unknown") for m in memberships}
-    except Exception:
-        role_by_person = {}
+    role_by_person = {}
+
+    if _has_project_memberships_api():
+        try:
+            memberships = gazu.client.get(
+                f"data/project-memberships?project_id={project['id']}"
+            )
+            role_by_person = {m["person_id"]: m.get("role", "unknown") for m in memberships}
+        except Exception:
+            pass
 
     result = []
     for member in team:
+        project_role = role_by_person.get(member["id"])
+        if project_role is None:
+            project_role = member.get("role", "unknown")
         result.append({
             "id": member["id"],
             "full_name": member["full_name"],
             "email": member["email"],
-            "project_role": role_by_person.get(member["id"], "unknown"),
+            "project_role": project_role,
+            "global_role": member.get("role", "unknown"),
             "active": member.get("active", True),
         })
     return result
@@ -1428,27 +1450,32 @@ def add_team_member(
     if any(m["id"] == person["id"] for m in team):
         return {"error": f"{person['full_name']} is already a member of project '{project_name}'"}
 
-    # Add to team (Kitsu always creates membership with default role 'artist')
+    # Add to team
     gazu.client.post(
         f"data/projects/{project['id']}/team",
         {"person_id": person["id"]},
     )
 
-    # If a non-default role was requested, update the membership record directly
-    if role.lower() != "artist":
-        membership, err = _get_project_membership(project["id"], person["id"])
-        if err:
-            return {"error": f"Person added but role not set: {err['error']}"}
-        err = _set_membership_role(membership["id"], role.lower())
-        if err:
-            return {"error": f"Person added but role not set: {err['error']}"}
-
-    return {
+    result = {
         "success": True,
         "person": person["full_name"],
         "project": project_name,
         "role": role.lower(),
     }
+
+    # Set project role if API available and non-default role requested
+    if role.lower() != "artist" and _has_project_memberships_api():
+        membership, err = _get_project_membership(project["id"], person["id"])
+        if err:
+            result["role_warning"] = f"Added to team but role not set: {err['error']}"
+        else:
+            err = _set_membership_role(membership["id"], role.lower())
+            if err:
+                result["role_warning"] = f"Added to team but role not set: {err['error']}"
+    elif role.lower() != "artist":
+        result["role_warning"] = "Project roles require Zou >=1.1. Set the role in Kitsu UI."
+
+    return result
 
 
 @mcp.tool()
