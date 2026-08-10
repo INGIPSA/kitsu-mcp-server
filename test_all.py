@@ -3,11 +3,20 @@ import gazu
 import json
 import os
 
-gazu.set_host("https://kitsu.tatostudio.pl/api")
-gazu.log_in("piotr.b@tato.studio", "kitMBw123$$")
+KITSU_HOST = os.environ["KITSU_HOST"]
+KITSU_USER = os.environ["KITSU_USER"]
+KITSU_PASSWORD = os.environ["KITSU_PASSWORD"]
+KITSU_TEST_PROJECT = os.environ.get("KITSU_TEST_PROJECT")
 
-proj = [p for p in gazu.project.all_open_projects() if p["name"] == "Forever Skies"][0]
-person = gazu.person.get_person_by_email("piotr.b@tato.studio")
+gazu.set_host(KITSU_HOST)
+gazu.log_in(KITSU_USER, KITSU_PASSWORD)
+
+open_projects = gazu.project.all_open_projects()
+if KITSU_TEST_PROJECT:
+    proj = [p for p in open_projects if p["name"] == KITSU_TEST_PROJECT][0]
+else:
+    proj = open_projects[0]
+person = gazu.person.get_person_by_email(KITSU_USER)
 R = []
 
 shots = gazu.shot.all_shots_for_project(proj)
