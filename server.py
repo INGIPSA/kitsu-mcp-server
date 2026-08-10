@@ -20,9 +20,12 @@ logger = logging.getLogger("kitsu-mcp")
 
 @asynccontextmanager
 async def kitsu_lifespan(server: FastMCP):
-    host = os.environ.get("KITSU_HOST", "https://kitsu.tatostudio.pl/api")
+    host = os.environ.get("KITSU_HOST", "")
     email = os.environ.get("KITSU_USER", "")
     password = os.environ.get("KITSU_PASSWORD", "")
+
+    if not host:
+        raise RuntimeError("KITSU_HOST environment variable is required")
 
     gazu.set_host(host)
 
